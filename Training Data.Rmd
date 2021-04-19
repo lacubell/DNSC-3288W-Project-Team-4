@@ -30,6 +30,7 @@ library('data.table')
 df <- read.csv('/Users/daviddimolfetta/Downloads/train.csv')
 head(df,10)
 str(df)
+
 ```
 
 
@@ -37,6 +38,12 @@ Building the training data linear model:
 
 ```{r}
 df1 <- df %>% select(SalePrice,LotArea,OverallQual,X1stFlrSF,X2ndFlrSF,OverallCond,LotFrontage,GarageArea)
+```
+
+
+Model summary:
+
+```{r}
 df1
 summary(lm(SalePrice~LotArea+OverallQual+X1stFlrSF+X2ndFlrSF+OverallCond+LotFrontage+GarageArea,data=df1)) 
 ```
