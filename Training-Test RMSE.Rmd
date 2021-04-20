@@ -1,0 +1,92 @@
+---
+title: "Training-Test RMSE"
+author: "David DiMolfetta"
+date: "4/18/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library('tibble')
+library('tidyr')
+library('dplyr')
+library('data.table')
+install.packages("ModelMetrics")
+library(ModelMetrics)
+
+#   NOTE - The directory below is pulled locally from the user's computer, please modify to 
+#   import the dataset in.
+
+# Data can be accessed here:
+# https://www.kaggle.com/c/house-prices-advanced-regression-techniques/data?select=train.csv
+
+df <- read.csv('/Users/daviddimolfetta/Downloads/train.csv')
+head(df,10)
+str(df)
+
+# Log transform (?)
+
+```
+
+Training Data Build
+
+```{r pressure, echo=FALSE}
+df.train <- df %>% select(SalePrice,LotArea,OverallQual,X1stFlrSF,X2ndFlrSF,OverallCond,LotFrontage,GarageArea)
+df.train
+
+model1 <- (lm(SalePrice~LotArea+OverallQual+X1stFlrSF+X2ndFlrSF+OverallCond+LotFrontage+GarageArea,data=df.train)) 
+summary(model1)
+
+```
+
+
+Bring in test data
+
+```{r}
+
+df2 <- read.csv('/Users/daviddimolfetta/Downloads/test.csv')
+head(df2,10)
+str(df2)
+```
+Test data model build
+
+```{r}
+df.test <- df2 %>% select(LotArea,OverallQual,X1stFlrSF,X2ndFlrSF,OverallCond,LotFrontage,GarageArea)
+df.test
+
+# Test model
+pred.price <- predict(model1, df.test)
+output <- cbind(pred.price,df.test)
+output
+```
+
+
+```{r}
+# RMSLE
+
+#PLOT
+output$pred.price <- as.numeric(output$pred.price)
+preds <- output %>% select(pred.price)
+
+preds.vec <- unlist(preds)
+
+df.train$SalePrice <- as.numeric(df.train$SalePrice)
+actuals <- df.train %>% select(SalePrice)
+
+actuals.vec <- unlist(actuals)
+
+rmsle(actuals.vec, preds.vec)
+# VECTORS MUST BE MODIFIED TO REMOVE BLANKS
+
+
+```
+
