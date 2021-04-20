@@ -67,6 +67,7 @@ df.test
 pred.price <- predict(model1, df.test)
 output <- cbind(pred.price,df.test)
 output
+
 ```
 
 
