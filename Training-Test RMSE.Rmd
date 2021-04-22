@@ -29,7 +29,7 @@ library(ModelMetrics)
 # Data can be accessed here:
 # https://www.kaggle.com/c/house-prices-advanced-regression-techniques/data?select=train.csv
 
-df <- read.csv('/Users/daviddimolfetta/Downloads/train.csv')
+df <- read.csv("/Users/daviddimolfetta/Downloads/train.csv")
 head(df,10)
 str(df)
 
@@ -42,6 +42,14 @@ Training Data Build
 ```{r pressure, echo=FALSE}
 df.train <- df %>% select(SalePrice,LotArea,OverallQual,X1stFlrSF,X2ndFlrSF,OverallCond,LotFrontage,GarageArea)
 df.train
+
+# Mean Imputation
+for(i in 1:ncol(df.train)) {
+  df.train[ , i][is.na(df.train[ , i])] <- mean(df.train[ , i], na.rm = TRUE)
+}
+
+(df.train) # Check rows after substitution by mean
+
 
 model1 <- (lm(SalePrice~LotArea+OverallQual+X1stFlrSF+X2ndFlrSF+OverallCond+LotFrontage+GarageArea,data=df.train)) 
 summary(model1)
@@ -63,12 +71,31 @@ Test data model build
 df.test <- df2 %>% select(LotArea,OverallQual,X1stFlrSF,X2ndFlrSF,OverallCond,LotFrontage,GarageArea)
 df.test
 
+# Mean imputation
+for(i in 1:ncol(df.test)) {
+  df.test[ , i][is.na(df.test[ , i])] <- mean(df.test[ , i], na.rm = TRUE)
+}
+
+df.test
+
 # Test model
 pred.price <- predict(model1, df.test)
 output <- cbind(pred.price,df.test)
 output
 
 ```
+
+
+
+```{r}
+# Plotting actual vs predicted values
+
+
+
+
+```
+
+
 
 
 ```{r}
