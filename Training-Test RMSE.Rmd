@@ -18,10 +18,13 @@ When you click the **Knit** button a document will be generated that includes bo
 ```{r}
 library('tibble')
 library('tidyr')
+library('plyr')
 library('dplyr')
 library('data.table')
-install.packages("ModelMetrics")
-library(ModelMetrics)
+library('plotly')
+library('ModelMetrics')
+library('modelr')
+
 
 #   NOTE - The directory below is pulled locally from the user's computer, please modify to 
 #   import the dataset in.
@@ -80,41 +83,64 @@ df.test
 
 # Test model
 pred.price <- predict(model1, df.test)
-output <- cbind(pred.price,df.test)
-output
+
+
+# New data frame combining actual vs predicted values
+new.df <- add_predictions(df.train, model1, var = "pred.price", type = NULL)
+head(new.df)
+
 
 ```
+
+
+```{r}
+# Exporting df with preds
+
+df.submission <- new.df %>% select(pred.price)
+df.submission
+
+write.csv(df.submission,"/Users/daviddimolfetta/Downloads\\Kaggle_Submission.csv", row.names = TRUE)
+
+
+
+```
+
+
+
+
 
 
 
 ```{r}
 # Plotting actual vs predicted values
 
+act.df <- new.df %>% select(SalePrice)
+act.df
+
+pred.df <- new.df %>% select(pred.price)
+pred.df
+
+
+
+avp.df <- cbind(act.df,pred.df)
+
+
+head(avp.df)
+
+cor(avp.df$SalePrice,avp.df$pred.price)
+cor.test(avp.df$SalePrice,avp.df$pred.price)
+
+### Plot Actual v. Predicted ###
+
+avp.plot <- plot_ly(data = avp.df, x = ~SalePrice, y = ~pred.price, type = 'scatter', mode = 'markers')
+avp.plot
+# can you color the color markers on the pltly scatterplot???
+
+###
+
 
 
 
 ```
 
-
-
-
-```{r}
-# RMSLE
-
-#PLOT
-output$pred.price <- as.numeric(output$pred.price)
-preds <- output %>% select(pred.price)
-
-preds.vec <- unlist(preds)
-
-df.train$SalePrice <- as.numeric(df.train$SalePrice)
-actuals <- df.train %>% select(SalePrice)
-
-actuals.vec <- unlist(actuals)
-
-rmsle(actuals.vec, preds.vec)
-# VECTORS MUST BE MODIFIED TO REMOVE BLANKS
-
-
-```
 
