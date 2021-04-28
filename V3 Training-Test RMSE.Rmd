@@ -1,0 +1,173 @@
+---
+title: "Training-Test RMSE"
+author: "David DiMolfetta"
+date: "4/18/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library('tibble')
+library('tidyr')
+library('plyr')
+library('dplyr')
+library('data.table')
+library('plotly')
+library('ModelMetrics')
+library('modelr')
+library('ggplot2')
+library('corrplot')
+
+#   NOTE - The directory below is pulled locally from the user's computer, please modify to 
+#   import the dataset in.
+
+# Data can be accessed here:
+# https://www.kaggle.com/c/house-prices-advanced-regression-techniques/data?select=train.csv
+
+df <- read.csv("train.csv")
+head(df,10)
+str(df)
+
+# Log transform (?)
+```
+
+
+Training Data Build
+
+```{r pressure, echo=FALSE}
+corr.df <- df %>% select(SalePrice,LotArea,OverallQual,X1stFlrSF,X2ndFlrSF,OverallCond,LotFrontage,GarageArea)
+M <- cor(corr.df)
+corrplot(M, method='circle')
+
+
+df.train <- df %>% select(SalePrice,LotArea,OverallQual,X1stFlrSF,X2ndFlrSF,OverallCond,LotFrontage,GarageArea)
+df.train
+
+# Mean Imputation
+for(i in 1:ncol(df.train)) {
+  df.train[ , i][is.na(df.train[ , i])] <- mean(df.train[ , i], na.rm = TRUE)
+}
+
+(df.train) # Check rows after substitution by mean
+
+
+model1 <- (lm(SalePrice~LotArea+OverallQual+X1stFlrSF+X2ndFlrSF+OverallCond+LotFrontage+GarageArea,data=df.train)) 
+summary(model1)
+```
+
+
+```{r pressure, echo=FALSE}
+plot(model1)
+```
+
+
+Bring in test data
+
+```{r}
+
+df2 <- read.csv('test.csv')
+head(df2,10)
+str(df2)
+```
+Test data model build
+
+```{r}
+df.test <- df2 %>% select(LotArea,OverallQual,X1stFlrSF,X2ndFlrSF,OverallCond,LotFrontage,GarageArea)
+df.test
+
+# Mean imputation
+for(i in 1:ncol(df.test)) {
+  df.test[ , i][is.na(df.test[ , i])] <- mean(df.test[ , i], na.rm = TRUE)
+}
+
+df.test
+
+# Test model
+pred.price <- predict(model1, df.test)
+
+
+# New data frame combining actual vs predicted values
+new.df <- add_predictions(df.train, model1, var = "pred.price", type = NULL)
+head(new.df)
+
+
+```
+
+
+Writing to .csv
+
+```{r}
+# Exporting df with preds
+
+df.submission <- new.df %>% select(pred.price)
+df.submission
+
+write.csv(df.submission,"Kaggle_Submission.csv", row.names = TRUE)
+
+
+
+```
+
+
+
+```{r}
+# Plotting actual vs predicted values
+
+act.df <- new.df %>% select(SalePrice)
+act.df
+
+pred.df <- new.df %>% select(pred.price)
+pred.df
+
+
+
+avp.df <- cbind(act.df,pred.df)
+
+
+head(avp.df)
+
+cor(avp.df$SalePrice,avp.df$pred.price)
+cor.test(avp.df$SalePrice,avp.df$pred.price)
+
+### Plot Actual v. Predicted ###
+
+avp.plot <- plot_ly(data = avp.df, x = ~SalePrice, y = ~pred.price, type = 'scatter', mode = 'markers')
+avp.plot
+avp.df
+###
+
+
+```
+```{r}
+ggplot(avp.df, aes(x=SalePrice,y=pred.price)) + 
+  geom_point(color='dark blue') +
+  geom_abline(intercept=0, slope=1,color='red') +
+  labs(x='Predicted Values', y='Actual Values', title='Predicted vs. Actual Values')
+```
+
+
+
+```{r}
+# Added preds vs actual plot
+
+
+avp.df <- tibble::rowid_to_column(avp.df, "Id")
+avp.df
+
+fig <- plot_ly(data = avp.df, x= ~Id, y = ~SalePrice, name = 'Sale Price', type = 'scatter', mode = 'markers', marker=list(color='rgb(255,0,0)'))
+fig <- fig %>% add_trace(y = ~pred.price, name = 'Predicted Price', mode = 'markers', marker=list(color='rgb(0,0,255)'))
+
+fig
+
+
+```
+
