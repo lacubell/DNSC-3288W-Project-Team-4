@@ -1,0 +1,333 @@
+---
+title: "Training-Test RMSE"
+author: "David DiMolfetta"
+date: "4/18/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library('tibble')
+library('tidyr')
+library('plyr')
+library('dplyr')
+library('data.table')
+library('plotly')
+library('ModelMetrics')
+library('modelr')
+library('ggplot2')
+library('corrplot')
+
+#   NOTE - The directory below is pulled locally from the user's computer, please modify to 
+#   import the dataset in.
+
+# Data can be accessed here:
+# https://www.kaggle.com/c/house-prices-advanced-regression-techniques/data?select=train.csv
+
+df <- read.csv("train.csv")
+df1 <- read.csv("train.csv")
+head(df,10)
+str(df)
+```
+
+
+
+
+
+Training Data Build
+
+```{r pressure, echo=FALSE}
+corr.df <- df %>% select(SalePrice,LotArea,OverallQual,X1stFlrSF,X2ndFlrSF,OverallCond,LotFrontage,GarageArea)
+M <- cor(corr.df)
+corrplot(M, method='circle')
+```
+
+
+```{r}
+ggplot(data=df,aes(x=LotArea, y=SalePrice))+geom_point(color='dark green')
+ggplot(data=df,aes(group=OverallQual, y=SalePrice))+geom_boxplot(color='black')+labs(x='OverallQual')
+ggplot(data=df,aes(x=X1stFlrSF, y=SalePrice))+geom_point(color='orange')
+ggplot(data=df,aes(x=X2ndFlrSF, y=SalePrice))+geom_point(color='dark green')
+ggplot(data=df,aes(group=OverallCond, y=SalePrice))+geom_boxplot(color='dark blue')+labs(x='OverallCond')
+ggplot(data=df,aes(x=GarageArea, y=SalePrice))+geom_point(color='dark orange')
+```
+
+
+
+
+```{r pressure, echo=FALSE}
+df.train <- df %>% select(SalePrice,LotArea,OverallQual,X1stFlrSF,X2ndFlrSF,OverallCond,LotFrontage,GarageArea)
+df.train
+
+# DROPPING OUTLIERS
+
+#find absolute value of z-score for each value in each column
+z_scores1 <- as.data.frame(sapply(df.train, function(df.train) (abs(df.train-mean(df.train))/sd(df.train))))
+#view first six rows of z_scores data frame
+head(z_scores1)
+#only keep rows in dataframe with all z-scores less than absolute value of 3 
+no_outliers <- z_scores1[!rowSums(z_scores1>3), ]
+#view row and column count of new data frame
+dim(no_outliers)
+
+# Mean Imputation
+for(i in 1:ncol(df.train)) {
+  df.train[ , i][is.na(df.train[ , i])] <- mean(df.train[ , i], na.rm = TRUE)
+}
+
+(df.train) # Check rows after substitution by mean
+
+
+model1 <- (lm(SalePrice~LotArea+OverallQual+X1stFlrSF+X2ndFlrSF+OverallCond+LotFrontage+GarageArea,data=df.train)) 
+summary(model1)
+```
+
+
+```{r pressure, echo=FALSE}
+plot(model1)
+```
+
+
+Bring in test data
+
+```{r}
+
+df2 <- read.csv('test.csv')
+head(df2,10)
+str(df2)
+```
+Test data model build
+
+```{r}
+df.test <- df2 %>% select(LotArea,OverallQual,X1stFlrSF,X2ndFlrSF,OverallCond,LotFrontage,GarageArea)
+df.test
+
+#find absolute value of z-score for each value in each column
+z_scores2 <- as.data.frame(sapply(df.test, function(df.test) (abs(df.test-mean(df.test))/sd(df.test))))
+#view first six rows of z_scores data frame
+head(z_scores2)
+#only keep rows in dataframe with all z-scores less than absolute value of 3 
+no_outliers2 <- z_scores2[!rowSums(z_scores2>3), ]
+#view row and column count of new data frame
+dim(no_outliers2)
+
+
+# Mean imputation
+for(i in 1:ncol(df.test)) {
+  df.test[ , i][is.na(df.test[ , i])] <- mean(df.test[ , i], na.rm = TRUE)
+}
+
+df.test
+
+# Test model
+pred.price <- predict(model1, df.test)
+
+
+# New data frame combining actual vs predicted values
+new.df <- add_predictions(df.train, model1, var = "pred.price", type = NULL)
+head(new.df)
+
+
+```
+
+
+Writing to .csv
+
+```{r}
+# Exporting df with preds
+
+df.submission <- new.df %>% select(pred.price)
+df.submission
+
+write.csv(df.submission,"Kaggle_Submission.csv", row.names = TRUE)
+
+
+
+```
+
+
+
+```{r}
+# Plotting actual vs predicted values
+
+act.df <- new.df %>% select(SalePrice)
+act.df
+
+pred.df <- new.df %>% select(pred.price)
+pred.df
+
+
+
+avp.df <- cbind(act.df,pred.df)
+
+
+head(avp.df)
+
+cor(avp.df$SalePrice,avp.df$pred.price)
+cor.test(avp.df$SalePrice,avp.df$pred.price)
+
+### Plot Actual v. Predicted ###
+
+avp.plot <- plot_ly(data = avp.df, x = ~SalePrice, y = ~pred.price, type = 'scatter', mode = 'markers')
+avp.plot
+avp.df
+###
+
+
+```
+```{r}
+ggplot(avp.df, aes(x=SalePrice,y=pred.price)) + 
+  geom_point(color='dark blue') +
+  geom_abline(intercept=0, slope=1,color='red') +
+  labs(x='Predicted Values', y='Actual Values', title='Predicted vs. Actual Values')
+```
+
+
+
+```{r}
+# Added preds vs actual plot
+
+
+avp.df <- tibble::rowid_to_column(avp.df, "Id")
+avp.df
+
+fig <- plot_ly(data = avp.df, x= ~Id, y = ~SalePrice, name = 'Sale Price', type = 'scatter', mode = 'markers', marker=list(color='rgb(255,0,0)'))
+fig <- fig %>% add_trace(y = ~pred.price, name = 'Predicted Price', mode = 'markers', marker=list(color='rgb(0,0,255)'))
+
+fig
+
+
+```
+
+
+Elastic Net Add-In (Post Presentation)
+
+```{r}
+
+# Invoke elastic net package
+
+"""
+http://www.sthda.com/english/articles/37-model-selection-essentials-in-r/153-penalized-regression-essentials-ridge-lasso-elastic-net/#:~:text=Elastic%20Net%20produces%20a%20regression,zero%20(as%20in%20LASSO).
+
+"""
+
+library(glmnet)
+```
+
+
+
+```{r}
+na_count <-sapply(df, function(y) sum(length(which(is.na(y)))))
+na_count <- data.frame(na_count)
+na_count
+```
+
+
+```{r}
+drop <- c("LotFrontage","Alley","MasVnrType","MasVnrArea","FireplaceQu","GarageType","GarageYrBlt","GarageQual","GarageCond","GarageFinish","PoolQC","Fence","MiscFeature","BsmtQual","BsmtCond","BsmtExposure","BsmtFinType1","BsmtFinType2","LandContour","Id","MiscVal","MoSold","ScreenPorch","X3SsnPorch","Functional","Electrical","LowQualFinSF","Heating","CentralAir","Exterior1st","Exterior2nd","ExterCond","RoofMatl","RoofStyle","YearRemodAdd","Condition1","Condition2","BldgType","Neighborhood","LotConfig","LotShape","Utilities")
+df1  <- df[,!(names(df) %in% drop)]
+df1 <- na.omit(df1)
+df1
+```
+
+
+```{r}
+x <- model.matrix(SalePrice~.,df1)
+y <- df1$SalePrice
+str(x)
+```
+
+LASSO
+```{r}
+glmnet(x, y, alpha = 1, lambda = NULL)
+```
+ridge regression
+```{r}
+# Find the best lambda using cross-validation
+set.seed(123) 
+cv <- cv.glmnet(x, y, alpha = 0)
+# Display the best lambda value
+cv$lambda.min
+```
+```{r}
+# Fit the final model on the training data
+model <- glmnet(x, y, alpha = 0, lambda = cv$lambda.min)
+# Display regression coefficients
+coef(model)
+
+model
+```
+
+
+Bring in Test Data and Clean It
+
+```{r}
+
+na_count <-sapply(df2, function(y) sum(length(which(is.na(y)))))
+na_count <- data.frame(na_count)
+na_count
+
+drop <- c("LotFrontage","Alley","MasVnrType","MasVnrArea","FireplaceQu","GarageType","GarageYrBlt","GarageQual","GarageCond","GarageFinish","PoolQC","Fence","MiscFeature","BsmtQual","BsmtCond","BsmtExposure","BsmtFinType1","BsmtFinType2","LandContour","Id","MiscVal","MoSold","ScreenPorch","X3SsnPorch","Functional","Electrical","LowQualFinSF","Heating","CentralAir","Exterior1st","Exterior2nd","ExterCond","RoofMatl","RoofStyle","YearRemodAdd","Condition1","Condition2","BldgType","Neighborhood","LotConfig","LotShape","Utilities")
+df2  <- df2[,!(names(df2) %in% drop)]
+#df2 <- na.omit(df2)
+df2
+
+
+
+```
+
+
+
+
+```{r}
+
+# Test model
+els.pred.price <- predict(model, df2)
+
+
+# New data frame combining actual vs predicted values
+new.df <- add_predictions(df.train, model1, var = "els.pred.price", type = NULL)
+head(new.df)
+
+
+
+# Make predictions on the test data
+x.test <- model.matrix(SalePrice ~., df1)[,-1]
+predictions <- model %>% predict(x.test) %>% as.vector()
+
+
+
+# Model performance metrics
+data.frame(
+  RMSE = RMSE(predictions, df2$medv),
+  Rsquare = R2(predictions, df2$medv)
+)
+```
+
+ElasticNet
+```{r}
+fit.elnet <- glmnet(x, y, family="gaussian", alpha=.5)
+fit.elnet
+fit.elnet.cv <- cv.glmnet(x, y, type.measure="mse", alpha=.5,
+                          family="gaussian")
+
+```
+```{r}
+for (i in 0:10) {
+    assign(paste("fit", i, sep=""), cv.glmnet(x, y, type.measure="mse", 
+                                              alpha=i/10,family="gaussian"))
+}
+
+plot(fit.elnet, xvar="lambda")
+plot(fit5, main="Elastic Net")
+```
+
