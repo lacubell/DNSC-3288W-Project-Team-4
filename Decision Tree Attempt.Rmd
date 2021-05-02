@@ -1,0 +1,187 @@
+---
+title: "Decision Tree Attempt"
+author: "David DiMolfetta"
+date: "5/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This version of our project attempts to use a Decision Tree to predict house prices in Ames, Iowa.
+
+```{r}
+library('tibble')
+library('tidyr')
+library('plyr')
+library('dplyr')
+library('data.table')
+library('plotly')
+library('ModelMetrics')
+library('modelr')
+library('ggplot2')
+library('corrplot')
+library('rpart')
+library('rpart.plot')
+
+#   NOTE - The directory below is pulled locally from the user's computer, please modify to 
+#   import the dataset in.
+
+# Data can be accessed here:
+# https://www.kaggle.com/c/house-prices-advanced-regression-techniques/data?select=train.csv
+
+df <- read.csv("train.csv")
+df1 <- read.csv("train.csv")
+head(df,10)
+str(df)
+
+
+```
+
+
+```{r}
+
+df.train <- df %>% select(SalePrice,LotArea,OverallQual,X1stFlrSF,X2ndFlrSF,OverallCond,LotFrontage,GarageArea)
+df.train
+
+# DROPPING OUTLIERS
+
+#find absolute value of z-score for each value in each column
+z_scores1 <- as.data.frame(sapply(df.train, function(df.train) (abs(df.train-mean(df.train))/sd(df.train))))
+#view first six rows of z_scores data frame
+head(z_scores1)
+#only keep rows in dataframe with all z-scores less than absolute value of 3 
+no_outliers <- z_scores1[!rowSums(z_scores1>3), ]
+#view row and column count of new data frame
+dim(no_outliers)
+
+# Mean Imputation
+for(i in 1:ncol(df.train)) {
+  df.train[ , i][is.na(df.train[ , i])] <- mean(df.train[ , i], na.rm = TRUE)
+}
+
+(df.train) # Check rows after substitution by mean
+
+```
+
+Building tree model on training data
+
+
+```{r}
+# grow tree
+tree.fit <- rpart(SalePrice~LotArea+OverallQual+X1stFlrSF+X2ndFlrSF+OverallCond+LotFrontage+GarageArea,
+   method="anova", data=df.train)
+
+printcp(tree.fit) # display the results
+plotcp(tree.fit) # visualize cross-validation results
+summary(tree.fit) # detailed summary of splits
+
+rsq.rpart(tree.fit)
+
+# plot tree
+rpart.plot(tree.fit)
+
+
+```
+
+
+Bring in test data
+
+```{r}
+df2 <- read.csv('test.csv')
+head(df2,10)
+str(df2)
+
+
+df.test <- df2 %>% select(LotArea,OverallQual,X1stFlrSF,X2ndFlrSF,OverallCond,LotFrontage,GarageArea)
+df.test
+
+#find absolute value of z-score for each value in each column
+z_scores2 <- as.data.frame(sapply(df.test, function(df.test) (abs(df.test-mean(df.test))/sd(df.test))))
+#view first six rows of z_scores data frame
+head(z_scores2)
+#only keep rows in dataframe with all z-scores less than absolute value of 3 
+no_outliers2 <- z_scores2[!rowSums(z_scores2>3), ]
+#view row and column count of new data frame
+dim(no_outliers2)
+
+
+# Mean imputation
+for(i in 1:ncol(df.test)) {
+  df.test[ , i][is.na(df.test[ , i])] <- mean(df.test[ , i], na.rm = TRUE)
+}
+
+df.test
+
+```
+
+
+Predicting tree on test data
+
+```{r}
+# Test model
+pred.price <- predict(tree.fit, df.test)
+
+
+# New data frame combining actual vs predicted values
+new.df <- add_predictions(df.train, tree.fit, var = "pred.price", type = NULL)
+head(new.df)
+
+```
+
+Analysis
+
+```{r}
+# Plotting actual vs predicted values
+
+act.df <- new.df %>% select(SalePrice)
+act.df
+
+pred.df <- new.df %>% select(pred.price)
+pred.df
+
+avp.df <- cbind(act.df,pred.df)
+
+
+head(avp.df)
+
+cor(avp.df$SalePrice,avp.df$pred.price)
+cor.test(avp.df$SalePrice,avp.df$pred.price)
+
+### Plot Actual v. Predicted ###
+
+avp.plot <- plot_ly(data = avp.df, x = ~SalePrice, y = ~pred.price, type = 'scatter', mode = 'markers')
+avp.plot
+avp.df
+###
+```
+
+
+More analysis
+
+```{r}
+ggplot(avp.df, aes(x=SalePrice,y=pred.price)) + 
+  geom_point(color='dark blue') +
+  geom_abline(intercept=0, slope=1,color='red') +
+  labs(x='Predicted Values', y='Actual Values', title='Predicted vs. Actual Values')
+
+
+# Added preds vs actual plot
+
+
+avp.df <- tibble::rowid_to_column(avp.df, "Id")
+avp.df
+
+fig <- plot_ly(data = avp.df, x= ~Id, y = ~SalePrice, name = 'Sale Price', type = 'scatter', mode = 'markers', marker=list(color='rgb(255,0,0)'))
+fig <- fig %>% add_trace(y = ~pred.price, name = 'Predicted Price', mode = 'markers', marker=list(color='rgb(0,0,255)'))
+
+fig
+
+
+```
+
+
+
+
+
