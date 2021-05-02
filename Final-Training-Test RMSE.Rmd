@@ -185,3 +185,27 @@ fig
 
 ```
 
+
+Elastic Net Add-In (Post Presentation)
+
+```{r}
+
+# --- drop outliers ---
+
+# Invoke elastic net package
+install.packages('glmnet')
+library(glmnet)
+
+http://www.sthda.com/english/articles/37-model-selection-essentials-in-r/153-penalized-regression-essentials-ridge-lasso-elastic-net/#:~:text=Elastic%20Net%20produces%20a%20regression,zero%20(as%20in%20LASSO).
+
+
+glmnet(x, y, alpha = 1, lambda = NULL)
+
+
+
+
+```
+
+
+
+
