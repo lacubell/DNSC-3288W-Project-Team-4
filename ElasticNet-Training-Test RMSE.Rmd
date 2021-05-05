@@ -1,0 +1,242 @@
+---
+title: "Training-Test RMSE"
+author: "David DiMolfetta"
+date: "4/18/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library('tibble')
+library('tidyr')
+library('plyr')
+library('dplyr')
+library('data.table')
+library('plotly')
+library('ModelMetrics')
+library('modelr')
+library('ggplot2')
+library('corrplot')
+
+#   NOTE - The directory below is pulled locally from the user's computer, please modify to 
+#   import the dataset in.
+
+# Data can be accessed here:
+# https://www.kaggle.com/c/house-prices-advanced-regression-techniques/data?select=train.csv
+
+df <- read.csv("train.csv")
+df1 <- read.csv("train.csv")
+head(df,10)
+str(df)
+```
+
+
+```{r}
+na_count <-sapply(df, function(y) sum(length(which(is.na(y)))))
+na_count <- data.frame(na_count)
+na_count
+```
+
+
+```{r}
+drop <- c("LotFrontage","Alley","MasVnrType","MasVnrArea","FireplaceQu","GarageType","GarageYrBlt","GarageQual","GarageCond","GarageFinish","PoolQC","Fence","MiscFeature","BsmtQual","BsmtCond","BsmtExposure","BsmtFinType1","BsmtFinType2","LandContour","Id","MiscVal","MoSold","ScreenPorch","X3SsnPorch","Functional","Electrical","LowQualFinSF","Heating","CentralAir","Exterior1st","Exterior2nd","ExterCond","RoofMatl","RoofStyle","YearRemodAdd","Condition1","Condition2","BldgType","Neighborhood","LotConfig","LotShape","Utilities","HouseStyle","SaleCondition","BsmtFullBath","MSZoning","SaleType","KitchenQual")
+df1  <- df[,!(names(df) %in% drop)]
+df1 <- na.omit(df1)
+df1
+```
+
+
+DUMMIES
+```{r}
+library('fastDummies')
+dumcol <- c('MSZoning',"Street","LotShape","Utilities","LotConfig","LandSlope","Neighborhood","Condition1","Condition2","BldgType","RoofStyle","RoofMatl","Exterior1st","Exterior2nd","ExterQual","ExterCond","Foundation","Heating","HeatingQC","CentralAir","Electrical","KitchenQual","Functional","PavedDrive","SaleType","SaleCondition")
+df1 <-dummy_cols(df1,select_columns = dumcol,remove_first_dummy = TRUE,remove_most_frequent_dummy = FALSE,remove_selected_columns = TRUE
+)
+df1
+```
+
+Split the dataset 70/30
+```{r}
+library(caret)
+library(glmnet)
+library(psych)
+set.seed(222)
+ind <- sample(2,nrow(df1),replace = T, prob=c(0.7,0.3))
+train_1 <- df1[ind==1,]
+test_1 <- df1[ind==2,]
+
+```
+
+#custom control parameters
+```{r}
+custom <- trainControl(method ='repeatedcv',
+                       number = 10,
+                       repeats = 5,
+                       verboseIter = T)
+```
+
+
+```{r}
+set.seed(1234)
+lm <- train(SalePrice~.,
+            train_1, 
+            method ='lm',
+            trControl=custom)
+```
+```{r}
+lm$results
+```
+
+```{r}
+lm
+```
+```{r}
+summary(lm)
+```
+```{r}
+plot(lm$finalModel)
+```
+```{r}
+set.seed(1234)
+ridge <- train(SalePrice~.,
+                 train_1,
+                 method='glmnet',
+                 tuneGrid = expand.grid(alpha=0,
+                                        lambda = seq(0.1,1,length=5)),
+                 trControl = custom)
+ridge
+
+```
+```{r}
+plot(ridge)
+#we use lambda=1 - 
+plot(ridge$finalModel,xvar='lambda',label=T)
+#as the lambda close to 18, all coefficients close to 0
+plot(ridge$finalModel,xvar='dev',label=T)
+plot(varImp(ridge,scale=F))#it shows that the most important variables are 'Foundation_wood,SaleType_Con,Street_Pave,ExterQua_TA,KitchenQua_TA'
+
+```
+```{r}
+
+#LASSO Reg
+#shrinkage highly correlated variabel, it tends to select one variable from each group and ignore others.
+
+set.seed(1234)
+lasso <- train(SalePrice~.,
+               train_1,
+               method='glmnet',
+               tuneGrid = expand.grid(alpha=1,
+                                      lambda=seq(0.1,0.2,length=5)),
+               trControl=custom)
+
+lasso
+```
+```{r}
+plot(lasso)
+plot(lasso$finalModel,xvar='lambda',label=T)
+plot(lasso$finalModel,xvar='dev',label=T)# we can explain 80% of the variabtion by using 13 variables
+plot(varImp(lasso,scale=F))#it shows that the most important variables are 'Foundation_wood,SaleType_Con,SaleType_New,ExterQua_TA,Kitchen_Gd'
+```
+
+
+#Elastic net
+```{r}
+set.seed(1234)
+en <- train(SalePrice~.,
+            train_1,
+            method ='glmnet',
+            tuneGrid=expand.grid(alpha=seq(0,1,length=10),
+                                 lambda=seq(0.0001,0.7,length=5)),
+            trControl=custom)
+```
+plot(en)
+```{r}
+plot(en)
+```
+
+```{r}
+#compare models
+model_list <- list(LinearModel = lm,Ridge=ridge,Lasso=lasso, ElasticNet=en)
+res <- resamples(model_list)
+summary(res)
+#besr model is ridge?
+```
+
+```{r}
+bwplot(res)
+xyplot(res)#linear model and ridge are pretty much similar
+```
+```{r}
+best <- en$finalModel
+coef(best,s=en$bestTune$lambda)
+```
+
+```{r}
+saveRDS(en,'final_model.rds')
+fm <- readRDS('final_model.rds')
+p1 <- predict(fm,train_1)
+sqrt(mean((train_1$SalePrice-p1)^2))
+
+```
+```{r}
+p2 <- predict(fm,test_1)
+sqrt(mean((test_1$SalePrice-p2)^2))
+
+```
+```{r}
+testdf <- read.csv('test.csv')
+drop <- c("LotFrontage","Alley","MasVnrType","MasVnrArea","FireplaceQu","GarageType","GarageYrBlt","GarageQual","GarageCond","GarageFinish","PoolQC","Fence","MiscFeature","BsmtQual","BsmtCond","BsmtExposure","BsmtFinType1","BsmtFinType2","LandContour","Id","MiscVal","MoSold","ScreenPorch","X3SsnPorch","Functional","Electrical","LowQualFinSF","Heating","CentralAir","Exterior1st","Exterior2nd","ExterCond","RoofMatl","RoofStyle","YearRemodAdd","Condition1","Condition2","BldgType","Neighborhood","LotConfig","LotShape","Utilities",'MSZoning',"SaleType",'KitchenQual')
+testdata  <- testdf[,!(names(testdf) %in% drop)]
+# Mean imputation
+for(i in 1:ncol(testdata)) {
+  testdata[ , i][is.na(testdata[ , i])] <- mean(testdata[ , i], na.rm = TRUE)
+}
+na_count <-sapply(testdata, function(y) sum(length(which(is.na(y)))))
+na_count <- data.frame(na_count)
+na_count
+
+
+```
+```{r}
+
+
+```
+
+
+```{r}
+#create dummy in test data
+library('fastDummies')
+dumcol <- c("Street","LandSlope","LotShape","HouseStyle","ExterQual","Foundation","HeatingQC","KitchenQual","PavedDrive","SaleType","SaleCondition","Utilities")
+testdata <-dummy_cols(testdata,select_columns = dumcol,remove_first_dummy = TRUE,remove_most_frequent_dummy = FALSE,remove_selected_columns = TRUE)
+testdata
+
+```
+
+```{r}
+pred.price <- predict(fm,testdata)
+# New data frame combining actual vs predicted values
+new.df <- add_predictions(testdata, fm, var = "pred.price", type = NULL)
+head(new.df)
+
+# Exporting df with preds
+
+df.submission <- new.df %>% select(pred.price)
+df.submission
+
+write.csv(df.submission,"Kaggle_Submission.csv", row.names = TRUE)
+
+
+```
+
+
+
+
