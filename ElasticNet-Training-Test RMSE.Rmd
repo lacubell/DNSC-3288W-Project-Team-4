@@ -128,7 +128,7 @@ plot(varImp(ridge,scale=F))#it shows that the most important variables are 'Foun
 ```{r}
 
 #LASSO Reg
-#shrinkage highly correlated variabel, it tends to select one variable from each group and ignore others.
+#shrinkage highly correlated variable, it tends to select one variable from each group and ignore others.
 
 set.seed(1234)
 lasso <- train(SalePrice~.,

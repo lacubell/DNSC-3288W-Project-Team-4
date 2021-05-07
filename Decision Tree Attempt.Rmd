@@ -183,5 +183,12 @@ fig
 
 
 
+```{r}
+# Exporting df with preds
 
+df.submission <- new.df %>% select(pred.price)
+df.submission
+
+write.csv(df.submission,"Tree_Kaggle_Submission.csv", row.names = TRUE)
+```
 
